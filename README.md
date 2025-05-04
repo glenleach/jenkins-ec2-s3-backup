@@ -47,7 +47,7 @@ Create a `terraform.tfvars` file in the project root with your settings:
 region         = "us-east-1"                         # AWS region (e.g., N. Virginia)
 s3_bucket_name = "jenkins-backup-bucket-20240505"    # Globally unique S3 bucket name
 my_ip          = "203.0.113.42/32"                   # Your IP address for SSH/Jenkins access
-instance_type  = "t2.medium                    # EC2 instance type for Jenkins
+instance_type  = "t2.medium                          # EC2 instance type for Jenkins
 ```
 
 ### 3. **Initialize and Apply Terraform**
@@ -111,17 +111,6 @@ To trigger a manual backup of Jenkins data to S3 at any time:
    Use `terraform destroy` (after removing the S3 bucket from state with `terraform state rm aws_s3_bucket.jenkins_backup`) to delete all AWS resources except your S3 backup.
 3. **Restore anytime:**  
    Use `terraform apply` again to bring Jenkins back with all jobs, plugins, and configuration restored from S3.
-
----
-
-## Example `terraform.tfvars`
-
-```hcl
-region         = "ap-southeast-1"                         # AWS region (e.g., Singapore)
-s3_bucket_name = "jenkins-backup-bucket-unique-20240505"  # Globally unique S3 bucket name
-my_ip          = "198.51.100.77/32"                       # Your IP address for SSH/Jenkins access
-instance_type  = "t3.large"                               # EC2 instance type for Jenkins
-```
 
 ---
 

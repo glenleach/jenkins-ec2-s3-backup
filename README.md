@@ -132,7 +132,8 @@ To trigger a manual backup of Jenkins data to S3 at any time:
 4. **Initialize and apply:**
    ```sh
    terraform init
-   terraform apply
+   terraform plan
+   terraform apply --auto-approve
    ```
 
 5. **Access Jenkins:**
@@ -150,7 +151,9 @@ To trigger a manual backup of Jenkins data to S3 at any time:
   ```
 - To **restore Jenkins**:
   ```sh
-  terraform apply
+  terraform import aws_s3_bucket.jenkins_backup <bucket name>  #e.g terraform import aws_s3_bucket.jenkins_backup jenkins-backup-bucket-123456789
+  terraform plan
+  terraform apply --auto-approve
   ```
   Jenkins will be restored from the latest S3 backup.
 

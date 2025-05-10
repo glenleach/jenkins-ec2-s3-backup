@@ -45,6 +45,8 @@ if aws s3 ls "s3://$BUCKET_NAME/jenkins_home/" | grep -q .; then
   echo "Found Jenkins home backup in S3. Restoring..."
   aws s3 sync s3://$BUCKET_NAME/jenkins_home/ "$JENKINS_HOME/"
   chown -R 1000:1000 "$JENKINS_HOME"
+  # Ensure Maven binaries are executable (fixes error=13 Permission denied)
+  find "$JENKINS_HOME/tools/hudson.tasks.Maven_MavenInstallation" -type f -name "mvn" -exec chmod +x {} \;
   echo "Restore complete. Waiting 10 seconds for file system to settle."
   sleep 10
   RESTORE_OCCURRED=1
@@ -82,8 +84,49 @@ docker run -d --restart unless-stopped \
   --name jenkins \
   -p 8080:8080 -p 50000:50000 \
   -v "$JENKINS_HOME":/var/jenkins_home \
+  -v /var/run/docker.sock:/var/run/docker.sock \
   jenkins/jenkins:lts
 
+# Wait for Jenkins container to be up and running
+until docker exec jenkins ls / > /dev/null 2>&1; do
+  echo "Waiting for Jenkins container to start..."
+  sleep 2
+done
+
+# --- Docker CLI and group setup (robust/idempotent) ---
+
+# Install Docker CLI inside the Jenkins container as root (using get.docker.com for best compatibility)
+docker exec -u root jenkins apt-get update
+docker exec -u root jenkins apt-get install -y curl
+docker exec -u root jenkins sh -c "curl -fsSL https://get.docker.com | sh"
+
+# Get the docker group GID from the host
+DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
+
+# Remove existing docker group in container (if any), then create with correct GID and add jenkins user
+docker exec -u root jenkins bash -c "getent group docker && groupdel docker || true"
+docker exec -u root jenkins groupadd -g $DOCKER_GID docker
+docker exec -u root jenkins usermod -aG docker jenkins
+
+# Restart Jenkins container so group membership is refreshed
+docker restart jenkins
+
+# Wait for Jenkins container to be up again
+until docker exec jenkins ls / > /dev/null 2>&1; do
+  echo "Waiting for Jenkins container to restart..."
+  sleep 2
+done
+
+# Verify group membership and Docker access
+docker exec jenkins id jenkins
+docker exec jenkins getent group docker
+docker exec jenkins docker --version
+if docker exec jenkins docker ps; then
+  echo "Jenkins user can access Docker daemon successfully."
+else
+  echo "ERROR: Jenkins user cannot access Docker daemon. Check group membership and permissions."
+  exit 1
+fi
 # Verify container is running
 if ! docker ps | grep -q jenkins; then
   echo "Jenkins container failed to start. Attempting to start again..."
@@ -155,4 +198,6 @@ chmod +x /usr/local/bin/jenkins_backup.sh
 echo "Scheduling initial backup in 30 minutes..."
 at now + 30 minutes -f /usr/local/bin/jenkins_backup.sh
 
-echo "Jenkins setup completed successfully at $(date)"
+# Log completion with date stored in a variable
+current_date=$(date)
+echo "Jenkins setup completed successfully at $current_date"

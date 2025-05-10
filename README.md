@@ -103,6 +103,23 @@ To trigger a manual backup of Jenkins data to S3 at any time:
 
 ---
 
+## Jenkins Can Execute Docker Commands
+
+This infrastructure is provisioned so that Jenkins jobs can execute Docker commands (such as `docker build`, `docker run`, etc.) directly from within the Jenkins container.
+
+**How this is achieved:**
+
+- The Docker CLI is installed inside the Jenkins container.
+- The host's Docker socket (`/var/run/docker.sock`) is mounted into the Jenkins container, allowing Jenkins to communicate with the host Docker daemon.
+- The `jenkins` user inside the container is added to a `docker` group that matches the group ID (GID) of the Docker socket on the host, ensuring proper permissions.
+- The Jenkins container is restarted after group changes to ensure the new permissions take effect.
+
+**Result:**
+
+Jenkins jobs can run Docker commands as if they were running directly on the host, enabling full CI/CD workflows that involve building, running, and managing Docker containers.
+
+---
+
 ## Cost-Saving Workflow
 
 1. **Run Jenkins when needed:**  

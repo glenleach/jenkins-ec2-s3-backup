@@ -34,7 +34,6 @@ install_jq_if_needed
 echo "Checking for latest Terraform version..."
 
 # Get latest version from HashiCorp releases index JSON using sort -V for proper semver sorting
-echo "Checking for latest Terraform version..."
 LATEST_VERSION=$(curl -s https://releases.hashicorp.com/terraform/index.json | \
   jq -r '.versions | keys[]' | \
   grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | \

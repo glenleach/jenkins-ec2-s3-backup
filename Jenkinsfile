@@ -16,10 +16,11 @@ pipeline {
             steps {
                 sh '''
                     apt-get update
-                    apt-get install -y wget unzip curl
+                    apt-get install -y wget unzip curl jq
                 '''
             }
         }
+
         stage('Install or Update Terraform') {
             steps {
                 sh '''

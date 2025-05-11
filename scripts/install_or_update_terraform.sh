@@ -33,16 +33,24 @@ install_jq_if_needed
 
 echo "Checking for latest Terraform version..."
 
-# Get latest version from HashiCorp releases index JSON using sort -V for proper semver sorting
-LATEST_VERSION=$(curl -s https://releases.hashicorp.com/terraform/index.json | \
-  jq -r '.versions | keys[]' | \
-  grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | \
-  sort -V | \
-  tail -n1)
+# Use GitHub API to get the latest stable release tag
+LATEST_VERSION=$(curl -s "https://api.github.com/repos/hashicorp/terraform/releases" | \
+    jq -r '[.[] | select(.prerelease == false and .draft == false) | .tag_name | select(test("^v?[0-9]+\\.[0-9]+\\.[0-9]+$"))] | map(ltrimstr("v")) | sort_by(split(".") | map(tonumber)) | last')
 
 if [[ -z "$LATEST_VERSION" ]]; then
-    echo "ERROR: Failed to determine latest Terraform version. Check your internet connection."
-    exit 1
+    echo "ERROR: Failed to determine latest Terraform version from GitHub API."
+    # Fallback to HashiCorp releases as a backup method
+    echo "Trying fallback method..."
+    LATEST_VERSION=$(curl -s https://releases.hashicorp.com/terraform/index.json | \
+      jq -r '.versions | keys[]' | \
+      grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | \
+      sort -V | \
+      tail -n1)
+    
+    if [[ -z "$LATEST_VERSION" ]]; then
+        echo "ERROR: Failed to determine latest Terraform version. Check your internet connection."
+        exit 1
+    fi
 fi
 
 # Get installed version (if any)
@@ -78,7 +86,7 @@ DOWNLOAD_URL="https://releases.hashicorp.com/terraform/${LATEST_VERSION}/${ZIP_F
 
 echo "Downloading Terraform ${LATEST_VERSION}..."
 if ! curl -fsSL -o "$ZIP_FILE" "$DOWNLOAD_URL"; then
-    echo "ERROR: Failed to download Terraform. Check your internet connection."
+    echo "ERROR: Failed to download Terraform. Check your internet connection or the version string."
     exit 1
 fi
 

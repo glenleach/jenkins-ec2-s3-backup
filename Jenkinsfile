@@ -1,7 +1,13 @@
+
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'jenkins/jenkins:lts'
+            args '-u root'
+        }
+    }
     environment {
-        GITHUB_TOKEN = credentials('github-token-credentials') // <-- Updated to your Jenkins credential ID
+        GITHUB_TOKEN = credentials('github-token-credentials') // Uses your specified Jenkins credential ID
     }
     stages {
         stage('Checkout') {

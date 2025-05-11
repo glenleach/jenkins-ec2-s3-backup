@@ -29,34 +29,25 @@ install_jq_if_needed() {
 }
 
 # Try to install jq for better version detection
+# Try to install jq for better version detection
 install_jq_if_needed
 
 echo "Checking for latest Terraform version..."
 
 # Use GitHub API to get the latest stable release tag
-if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    AUTH_HEADER="Authorization: token $GITHUB_TOKEN"
-else
-    AUTH_HEADER=""
+if [[ -z "${GITHUB_TOKEN:-}" ]]; then
+    echo "ERROR: GITHUB_TOKEN environment variable not set. Please provide a GitHub token to avoid API rate limits."
+    exit 1
 fi
+
+AUTH_HEADER="Authorization: token $GITHUB_TOKEN"
 
 LATEST_VERSION=$(curl -sH "$AUTH_HEADER" "https://api.github.com/repos/hashicorp/terraform/releases" | \
     jq -r '[.[] | select(.prerelease == false and .draft == false) | .tag_name | select(test("^v?[0-9]+\\.[0-9]+\\.[0-9]+$"))] | map(ltrimstr("v")) | sort_by(split(".") | map(tonumber)) | last')
 
 if [[ -z "$LATEST_VERSION" ]]; then
     echo "ERROR: Failed to determine latest Terraform version from GitHub API."
-    # Fallback to HashiCorp releases as a backup method
-    echo "Trying fallback method..."
-    LATEST_VERSION=$(curl -s https://releases.hashicorp.com/terraform/index.json | \
-      jq -r '.versions | keys[]' | \
-      grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | \
-      sort -V | \
-      tail -n1)
-    
-    if [[ -z "$LATEST_VERSION" ]]; then
-        echo "ERROR: Failed to determine latest Terraform version. Check your internet connection."
-        exit 1
-    fi
+    exit 1
 fi
 
 # Get installed version (if any)

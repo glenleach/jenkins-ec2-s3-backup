@@ -1,11 +1,8 @@
 pipeline {
-    agent {
-        docker {
-            image 'jenkins/jenkins:lts'
-            args '-u root'
-        }
+    agent any
+    environment {
+        GITHUB_TOKEN = credentials('github-token-credentials') // <-- Updated to your Jenkins credential ID
     }
-
     stages {
         stage('Checkout') {
             steps {
@@ -17,29 +14,16 @@ pipeline {
                 sh '''
                     apt-get update
                     apt-get install -y wget unzip curl jq file
-                    apt-get install -y unzip curl jq file
                 '''
             }
         }
-
         stage('Install or Update Terraform') {
             steps {
                 sh '''
                     chmod +x scripts/install_or_update_terraform.sh
-                    scripts/install_or_update_terraform.sh
+                    GITHUB_TOKEN="$GITHUB_TOKEN" scripts/install_or_update_terraform.sh
                 '''
             }
         }
-        // Optional: Add Terraform commands here
-        // stage('Terraform Init') {
-        //     steps {
-        //         sh 'terraform init'
-        //     }
-        // }
-        // stage('Terraform Plan') {
-        //     steps {
-        //         sh 'terraform plan'
-        //     }
-        // }
     }
 }

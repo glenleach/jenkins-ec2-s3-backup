@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 # Enable debug mode if DEBUG=true
-if [ "${DEBUG:-false}" = "true" ]; then
+if [[ "${DEBUG:-false}" == "true" ]]; then
     set -x
 fi
 
@@ -33,14 +33,15 @@ install_jq_if_needed
 
 echo "Checking for latest Terraform version..."
 
-# Get latest version from HashiCorp Checkpoint API
-LATEST_VERSION=$(curl -s https://checkpoint-api.hashicorp.com/v1/check/terraform | jq -r .current_version)
-if [ -z "$LATEST_VERSION" ]; then
+# Get latest version from HashiCorp releases index JSON
+echo "Checking for latest Terraform version..."
+LATEST_VERSION=$(curl -s https://releases.hashicorp.com/terraform/index.json | jq -r '.versions | to_entries | map(select(.value.builds | map(.arch == "amd64" and .os == "linux") | any)) | map(.key | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))) | sort_by(split(".") | map(tonumber)) | last')
+if [[ -z "$LATEST_VERSION" ]]; then
     echo "ERROR: Failed to determine latest Terraform version. Check your internet connection."
     exit 1
 fi
 
-# Get installed version
+# Get installed version (if any)
 if command_exists terraform; then
     INSTALLED_VERSION=$(terraform version | head -1 | awk '{print $2}' | tr -d 'v')
 else
@@ -54,7 +55,7 @@ else
     echo "Terraform is not installed."
 fi
 
-if [ "$LATEST_VERSION" = "$INSTALLED_VERSION" ]; then
+if [[ "$LATEST_VERSION" == "$INSTALLED_VERSION" ]]; then
     echo "Terraform is up to date. No action needed."
     exit 0
 fi
@@ -72,7 +73,7 @@ ZIP_FILE="terraform_${LATEST_VERSION}_linux_amd64.zip"
 DOWNLOAD_URL="https://releases.hashicorp.com/terraform/${LATEST_VERSION}/${ZIP_FILE}"
 
 echo "Downloading Terraform ${LATEST_VERSION}..."
-if ! wget -q "$DOWNLOAD_URL" -O "$ZIP_FILE"; then
+if ! curl -fsSL -o "$ZIP_FILE" "$DOWNLOAD_URL"; then
     echo "ERROR: Failed to download Terraform. Check your internet connection."
     exit 1
 fi
@@ -99,23 +100,20 @@ chmod +x terraform
 
 # Try to move to /usr/local/bin, fallback to ~/bin if not root
 echo "Installing Terraform binary..."
-if [ "$(id -u)" -eq 0 ]; then
+if [[ "$(id -u)" -eq 0 ]]; then
     mv terraform /usr/local/bin/
+elif command_exists sudo && sudo -n true 2>/dev/null; then
+    sudo mv terraform /usr/local/bin/
 else
-    # Try with sudo first
-    if command_exists sudo && sudo -n true 2>/dev/null; then
-        sudo mv terraform /usr/local/bin/
-    else
-        # Fallback to user's bin directory
-        mkdir -p "$HOME/bin"
-        mv terraform "$HOME/bin/"
-        export PATH="$HOME/bin:$PATH"
-        
-        # Add to PATH if not already there
-        if ! grep -q 'export PATH="$HOME/bin:$PATH"' "$HOME/.bashrc"; then
-            echo 'export PATH="$HOME/bin:$PATH"' >> "$HOME/.bashrc"
-            echo "Added $HOME/bin to your PATH in .bashrc"
-        fi
+    # Fallback to user's bin directory
+    mkdir -p "$HOME/bin"
+    mv terraform "$HOME/bin/"
+    export PATH="$HOME/bin:$PATH"
+    
+    # Add to PATH if not already there
+    if ! grep -q 'export PATH="$HOME/bin:$PATH"' "$HOME/.bashrc" 2>/dev/null; then
+        echo 'export PATH="$HOME/bin:$PATH"' >> "$HOME/.bashrc"
+        echo "Added $HOME/bin to your PATH in .bashrc"
     fi
 fi
 
@@ -126,4 +124,4 @@ if ! command_exists terraform; then
 fi
 
 echo "Terraform $(terraform version | head -1) installed successfully!"
-echo "You may need to restart your shell or run 'source ~/.bashrc' to use Terraform."
+echo "You may need to restart your shell or run 'source ~/.bashrc' to use Terraform if installed to \$HOME/bin."

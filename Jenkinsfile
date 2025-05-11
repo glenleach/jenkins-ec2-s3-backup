@@ -16,7 +16,8 @@ pipeline {
             steps {
                 sh '''
                     apt-get update
-                    apt-get install -y wget unzip curl jq
+                    apt-get install -y wget unzip curl jq file
+                    apt-get install -y unzip curl jq file
                 '''
             }
         }

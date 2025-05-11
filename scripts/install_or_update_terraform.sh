@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -e
 
 # Enable debug mode if DEBUG=true
@@ -29,38 +28,24 @@ install_jq_if_needed() {
     fi
 }
 
-# Function to get the latest Terraform version from HashiCorp API
-get_latest_version() {
-    if command_exists jq; then
-        # Use the official HashiCorp API
-        curl -s https://checkpoint-api.hashicorp.com/v1/check/terraform | jq -r .current_version
-    else
-        # Fallback to parsing the releases page
-        curl -sL https://releases.hashicorp.com/terraform/ | grep -oP 'terraform/\K([0-9]+\.[0-9]+\.[0-9]+)' | head -1
-    fi
-}
-
-# Function to get the installed Terraform version, if any
-get_installed_version() {
-    if command_exists terraform; then
-        terraform version | head -1 | awk '{print $2}' | tr -d 'v'
-    else
-        echo ""
-    fi
-}
-
 # Try to install jq for better version detection
 install_jq_if_needed
 
-# Get versions with error handling
 echo "Checking for latest Terraform version..."
-LATEST_VERSION=$(get_latest_version)
+
+# Get latest version from HashiCorp Checkpoint API
+LATEST_VERSION=$(curl -s https://checkpoint-api.hashicorp.com/v1/check/terraform | jq -r .current_version)
 if [ -z "$LATEST_VERSION" ]; then
     echo "ERROR: Failed to determine latest Terraform version. Check your internet connection."
     exit 1
 fi
 
-INSTALLED_VERSION=$(get_installed_version)
+# Get installed version
+if command_exists terraform; then
+    INSTALLED_VERSION=$(terraform version | head -1 | awk '{print $2}' | tr -d 'v')
+else
+    INSTALLED_VERSION=""
+fi
 
 echo "Latest Terraform version: $LATEST_VERSION"
 if [ -n "$INSTALLED_VERSION" ]; then
@@ -82,24 +67,30 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 
 cd "$TMP_DIR"
 
-# Download with progress and error handling
+# Download with error handling
+ZIP_FILE="terraform_${LATEST_VERSION}_linux_amd64.zip"
+DOWNLOAD_URL="https://releases.hashicorp.com/terraform/${LATEST_VERSION}/${ZIP_FILE}"
+
 echo "Downloading Terraform ${LATEST_VERSION}..."
-DOWNLOAD_URL="https://releases.hashicorp.com/terraform/${LATEST_VERSION}/terraform_${LATEST_VERSION}_linux_amd64.zip"
-if ! wget -O "terraform_${LATEST_VERSION}_linux_amd64.zip" "$DOWNLOAD_URL"; then
+if ! wget -q "$DOWNLOAD_URL" -O "$ZIP_FILE"; then
     echo "ERROR: Failed to download Terraform. Check your internet connection."
     exit 1
 fi
 
 # Verify download
 echo "Verifying download..."
-if ! file "terraform_${LATEST_VERSION}_linux_amd64.zip" | grep -q "Zip archive data"; then
-    echo "ERROR: Downloaded file is not a valid zip archive."
-    exit 1
+if command_exists file; then
+    FILE_TYPE=$(file "$ZIP_FILE")
+    echo "$ZIP_FILE: $FILE_TYPE"
+    if [[ "$FILE_TYPE" != *"Zip archive data"* ]]; then
+        echo "ERROR: Downloaded file is not a valid zip archive."
+        exit 1
+    fi
 fi
 
 # Extract and install
 echo "Extracting Terraform..."
-if ! unzip -o "terraform_${LATEST_VERSION}_linux_amd64.zip"; then
+if ! unzip -o "$ZIP_FILE"; then
     echo "ERROR: Failed to extract Terraform."
     exit 1
 fi

@@ -16,11 +16,11 @@ install_jq_if_needed() {
     if ! command_exists jq; then
         echo "Installing jq..."
         if command_exists apt-get; then
-            sudo apt-get update && sudo apt-get install -y jq
+            sudo apt-get update && sudo apt-get install -y jq unzip curl
         elif command_exists yum; then
-            sudo yum install -y jq
+            sudo yum install -y jq unzip curl
         elif command_exists brew; then
-            brew install jq
+            brew install jq unzip curl
         else
             echo "ERROR: Cannot install jq. Please install it manually and try again."
             exit 1
@@ -28,12 +28,10 @@ install_jq_if_needed() {
     fi
 }
 
-# Try to install jq for better version detection
 install_jq_if_needed
 
-echo "Checking for latest Terraform version..."
+echo "Checking for latest Terraform OSS CLI version..."
 
-# Use GitHub API to get the latest stable release tag
 if [[ -z "${GITHUB_TOKEN:-}" ]]; then
     echo "ERROR: GITHUB_TOKEN environment variable not set. Please provide a GitHub token to avoid API rate limits."
     exit 1
@@ -41,14 +39,14 @@ fi
 
 AUTH_HEADER="Authorization: token $GITHUB_TOKEN"
 
-# Try up to 3 times to get the latest version
+# Try up to 3 times to get the latest OSS CLI version (up to 1.8.x)
 MAX_RETRIES=3
 RETRY_COUNT=0
 LATEST_VERSION=""
 
 while [[ -z "$LATEST_VERSION" && $RETRY_COUNT -lt $MAX_RETRIES ]]; do
     LATEST_VERSION=$(curl -sH "$AUTH_HEADER" "https://api.github.com/repos/hashicorp/terraform/releases" | \
-        jq -r '[.[] | select(.prerelease == false and .draft == false) | .tag_name | select(test("^v?[0-9]+\\.[0-9]+\\.[0-9]+$"))] | map(ltrimstr("v")) | sort_by(split(".") | map(tonumber)) | last')
+        jq -r '[.[] | select(.prerelease == false and .draft == false) | .tag_name | select(test("^v?1\\.[0-8]\\.[0-9]+$"))] | map(ltrimstr("v")) | sort_by(split(".") | map(tonumber)) | last')
     
     if [[ -z "$LATEST_VERSION" ]]; then
         RETRY_COUNT=$((RETRY_COUNT + 1))
@@ -58,7 +56,7 @@ while [[ -z "$LATEST_VERSION" && $RETRY_COUNT -lt $MAX_RETRIES ]]; do
 done
 
 if [[ -z "$LATEST_VERSION" ]]; then
-    echo "ERROR: Failed to determine latest Terraform version from GitHub API after $MAX_RETRIES attempts."
+    echo "ERROR: Failed to determine latest Terraform OSS CLI version from GitHub API after $MAX_RETRIES attempts."
     exit 1
 fi
 
@@ -69,7 +67,7 @@ else
     INSTALLED_VERSION=""
 fi
 
-echo "Latest Terraform version: $LATEST_VERSION"
+echo "Latest Terraform OSS CLI version: $LATEST_VERSION"
 if [ -n "$INSTALLED_VERSION" ]; then
     echo "Installed Terraform version: $INSTALLED_VERSION"
 else

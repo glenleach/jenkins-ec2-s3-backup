@@ -33,9 +33,14 @@ install_jq_if_needed
 
 echo "Checking for latest Terraform version..."
 
-# Get latest version from HashiCorp releases index JSON
+# Get latest version from HashiCorp releases index JSON using sort -V for proper semver sorting
 echo "Checking for latest Terraform version..."
-LATEST_VERSION=$(curl -s https://releases.hashicorp.com/terraform/index.json | jq -r '.versions | to_entries | map(select(.value.builds | map(.arch == "amd64" and .os == "linux") | any)) | map(.key | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))) | sort_by(split(".") | map(tonumber)) | last')
+LATEST_VERSION=$(curl -s https://releases.hashicorp.com/terraform/index.json | \
+  jq -r '.versions | keys[]' | \
+  grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | \
+  sort -V | \
+  tail -n1)
+
 if [[ -z "$LATEST_VERSION" ]]; then
     echo "ERROR: Failed to determine latest Terraform version. Check your internet connection."
     exit 1

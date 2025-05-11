@@ -29,7 +29,6 @@ install_jq_if_needed() {
 }
 
 # Try to install jq for better version detection
-# Try to install jq for better version detection
 install_jq_if_needed
 
 echo "Checking for latest Terraform version..."
@@ -42,11 +41,24 @@ fi
 
 AUTH_HEADER="Authorization: token $GITHUB_TOKEN"
 
-LATEST_VERSION=$(curl -sH "$AUTH_HEADER" "https://api.github.com/repos/hashicorp/terraform/releases" | \
-    jq -r '[.[] | select(.prerelease == false and .draft == false) | .tag_name | select(test("^v?[0-9]+\\.[0-9]+\\.[0-9]+$"))] | map(ltrimstr("v")) | sort_by(split(".") | map(tonumber)) | last')
+# Try up to 3 times to get the latest version
+MAX_RETRIES=3
+RETRY_COUNT=0
+LATEST_VERSION=""
+
+while [[ -z "$LATEST_VERSION" && $RETRY_COUNT -lt $MAX_RETRIES ]]; do
+    LATEST_VERSION=$(curl -sH "$AUTH_HEADER" "https://api.github.com/repos/hashicorp/terraform/releases" | \
+        jq -r '[.[] | select(.prerelease == false and .draft == false) | .tag_name | select(test("^v?[0-9]+\\.[0-9]+\\.[0-9]+$"))] | map(ltrimstr("v")) | sort_by(split(".") | map(tonumber)) | last')
+    
+    if [[ -z "$LATEST_VERSION" ]]; then
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        echo "Attempt $RETRY_COUNT failed. Retrying in 5 seconds..."
+        sleep 5
+    fi
+done
 
 if [[ -z "$LATEST_VERSION" ]]; then
-    echo "ERROR: Failed to determine latest Terraform version from GitHub API."
+    echo "ERROR: Failed to determine latest Terraform version from GitHub API after $MAX_RETRIES attempts."
     exit 1
 fi
 
@@ -77,15 +89,50 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 
 cd "$TMP_DIR"
 
+# Determine OS and architecture
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+ARCH=$(uname -m)
+
+# Map architecture to Terraform's naming convention
+case "$ARCH" in
+    x86_64)
+        TERRAFORM_ARCH="amd64"
+        ;;
+    arm64|aarch64)
+        TERRAFORM_ARCH="arm64"
+        ;;
+    386|i386)
+        TERRAFORM_ARCH="386"
+        ;;
+    *)
+        echo "ERROR: Unsupported architecture: $ARCH"
+        exit 1
+        ;;
+esac
+
 # Download with error handling
-ZIP_FILE="terraform_${LATEST_VERSION}_linux_amd64.zip"
+ZIP_FILE="terraform_${LATEST_VERSION}_${OS}_${TERRAFORM_ARCH}.zip"
 DOWNLOAD_URL="https://releases.hashicorp.com/terraform/${LATEST_VERSION}/${ZIP_FILE}"
 
-echo "Downloading Terraform ${LATEST_VERSION}..."
-if ! curl -fsSL -o "$ZIP_FILE" "$DOWNLOAD_URL"; then
-    echo "ERROR: Failed to download Terraform. Check your internet connection or the version string."
-    exit 1
-fi
+echo "Downloading Terraform ${LATEST_VERSION} for ${OS}_${TERRAFORM_ARCH}..."
+MAX_DOWNLOAD_ATTEMPTS=3
+DOWNLOAD_ATTEMPT=1
+
+while [[ $DOWNLOAD_ATTEMPT -le $MAX_DOWNLOAD_ATTEMPTS ]]; do
+    if curl -fsSL -o "$ZIP_FILE" "$DOWNLOAD_URL"; then
+        break
+    else
+        echo "Download attempt $DOWNLOAD_ATTEMPT failed."
+        if [[ $DOWNLOAD_ATTEMPT -lt $MAX_DOWNLOAD_ATTEMPTS ]]; then
+            echo "Retrying in 5 seconds..."
+            sleep 5
+        else
+            echo "ERROR: Failed to download Terraform after $MAX_DOWNLOAD_ATTEMPTS attempts."
+            exit 1
+        fi
+        DOWNLOAD_ATTEMPT=$((DOWNLOAD_ATTEMPT + 1))
+    fi
+done
 
 # Verify download
 echo "Verifying download..."
@@ -132,5 +179,18 @@ if ! command_exists terraform; then
     exit 1
 fi
 
-echo "Terraform $(terraform version | head -1) installed successfully!"
-echo "You may need to restart your shell or run 'source ~/.bashrc' to use Terraform if installed to \$HOME/bin."
+# Verify the installed version matches what we expected
+VERIFIED_VERSION=$(terraform version | head -1 | awk '{print $2}' | tr -d 'v')
+if [[ "$VERIFIED_VERSION" != "$LATEST_VERSION" ]]; then
+    echo "WARNING: Installed version ($VERIFIED_VERSION) does not match expected version ($LATEST_VERSION)"
+else
+    echo "Terraform v$VERIFIED_VERSION installed successfully!"
+fi
+
+# Add helpful instructions
+if [[ -d "$HOME/bin" && -f "$HOME/bin/terraform" ]]; then
+    echo "Terraform was installed to $HOME/bin/terraform"
+    echo "You may need to restart your shell or run 'source ~/.bashrc' to use Terraform."
+else
+    echo "Terraform was installed to $(which terraform)"
+fi

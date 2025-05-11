@@ -34,7 +34,13 @@ install_jq_if_needed
 echo "Checking for latest Terraform version..."
 
 # Use GitHub API to get the latest stable release tag
-LATEST_VERSION=$(curl -s "https://api.github.com/repos/hashicorp/terraform/releases" | \
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    AUTH_HEADER="Authorization: token $GITHUB_TOKEN"
+else
+    AUTH_HEADER=""
+fi
+
+LATEST_VERSION=$(curl -sH "$AUTH_HEADER" "https://api.github.com/repos/hashicorp/terraform/releases" | \
     jq -r '[.[] | select(.prerelease == false and .draft == false) | .tag_name | select(test("^v?[0-9]+\\.[0-9]+\\.[0-9]+$"))] | map(ltrimstr("v")) | sort_by(split(".") | map(tonumber)) | last')
 
 if [[ -z "$LATEST_VERSION" ]]; then

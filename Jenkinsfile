@@ -7,6 +7,14 @@ pipeline {
                 checkout scm
             }
         }
+        stage('Install Prerequisites') {
+            steps {
+                sh '''
+                    apt-get update
+                    apt-get install -y wget unzip curl
+                '''
+            }
+        }
         stage('Install or Update Terraform') {
             steps {
                 sh '''

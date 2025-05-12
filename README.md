@@ -103,20 +103,20 @@ To trigger a manual backup of Jenkins data to S3 at any time:
 
 ---
 
-## Jenkins Can Execute Docker Commands
+## Jenkins Can Execute Docker and Terraform Commands
 
-This infrastructure is provisioned so that Jenkins jobs can execute Docker commands (such as `docker build`, `docker run`, etc.) directly from within the Jenkins container.
+This infrastructure is provisioned so that Jenkins jobs can execute both Docker commands (such as `docker build`, `docker run`, etc.) and Terraform commands (such as `terraform plan`, `terraform apply`, etc.) directly from within the Jenkins container.
 
 **How this is achieved:**
 
-- The Docker CLI is installed inside the Jenkins container.
+- The Docker CLI **and** Terraform are installed inside the Jenkins container automatically during provisioning.
 - The host's Docker socket (`/var/run/docker.sock`) is mounted into the Jenkins container, allowing Jenkins to communicate with the host Docker daemon.
 - The `jenkins` user inside the container is added to a `docker` group that matches the group ID (GID) of the Docker socket on the host, ensuring proper permissions.
 - The Jenkins container is restarted after group changes to ensure the new permissions take effect.
 
 **Result:**
 
-Jenkins jobs can run Docker commands as if they were running directly on the host, enabling full CI/CD workflows that involve building, running, and managing Docker containers.
+Jenkins jobs can run both Docker and Terraform commands as if they were running directly on the host, enabling full CI/CD workflows that involve building, running, and managing Docker containers, as well as provisioning and updating infrastructure with Terraform.
 
 ---
 

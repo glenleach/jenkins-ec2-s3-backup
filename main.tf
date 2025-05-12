@@ -147,7 +147,7 @@ resource "aws_instance" "jenkins_ec2" {
   vpc_security_group_ids      = [aws_security_group.jenkins_sg.id]
   associate_public_ip_address = true
   iam_instance_profile        = aws_iam_instance_profile.jenkins_instance_profile.name
-
+  user_data_replace_on_change = true
   user_data = templatefile("${path.module}/user_data.sh.tpl", {
     bucket_name = var.s3_bucket_name
   })

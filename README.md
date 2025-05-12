@@ -135,7 +135,7 @@ Jenkins jobs can run both Docker and Terraform commands as if they were running 
 
 1. **Clone the repository:**
    ```sh
-   git clone https://github.com/your-org/jenkins-on-ec2-s3-backup.git
+   git clone https://github.com/glenleach/jenkins-ec2-s3-backup.git
    cd jenkins-on-ec2-s3-backup
    ```
 

@@ -140,6 +140,15 @@ resource "aws_iam_instance_profile" "jenkins_instance_profile" {
   role = aws_iam_role.jenkins_ec2_role.name
 }
 
+resource "aws_subnet" "default" {
+  vpc_id                  = data.aws_vpc.default.id
+  cidr_block              = cidrsubnet(data.aws_vpc.default.cidr_block, 8, 1)
+  map_public_ip_on_launch = true
+  tags = {
+    Name = "jenkins-default-subnet"
+  }
+}
+
 resource "aws_instance" "jenkins_ec2" {
   ami                         = data.aws_ami.amazon_linux_2.id
   instance_type               = var.instance_type
@@ -147,6 +156,7 @@ resource "aws_instance" "jenkins_ec2" {
   vpc_security_group_ids      = [aws_security_group.jenkins_sg.id]
   associate_public_ip_address = true
   iam_instance_profile        = aws_iam_instance_profile.jenkins_instance_profile.name
+  subnet_id                   = aws_subnet.default.id
   user_data_replace_on_change = true
   user_data = templatefile("${path.module}/user_data.sh.tpl", {
     bucket_name = var.s3_bucket_name
